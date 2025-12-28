@@ -51,42 +51,63 @@ addEventListener("mousedown",()=>mouseDown=true);
 addEventListener("mouseup",()=>mouseDown=false);
 addEventListener("mousemove",e=>{mouseX=e.clientX;mouseY=e.clientY});
 
-/* MOBILE JOYSTICKS */
+/* ===== MOBILE MULTI-TOUCH ===== */
 let moveVec={x:0,y:0};
 let aimVec={x:0,y:0};
 let firing=false;
+let moveTouch=null;
+let aimTouch=null;
 
-function joystick(el,onMove,onEnd){
+function setupJoystick(el,type){
   const stick=el.querySelector(".stick");
-  const r=70;
+  const r=90;
 
-  el.addEventListener("touchstart",e=>e.preventDefault());
+  el.addEventListener("touchstart",e=>{
+    e.preventDefault();
+    for(const t of e.changedTouches){
+      if(type==="move" && moveTouch===null) moveTouch=t.identifier;
+      if(type==="aim" && aimTouch===null){ aimTouch=t.identifier; firing=true; }
+    }
+  });
+
   el.addEventListener("touchmove",e=>{
     e.preventDefault();
-    const t=e.touches[0];
-    const rect=el.getBoundingClientRect();
-    let x=t.clientX-rect.left-r;
-    let y=t.clientY-rect.top-r;
-    const d=Math.hypot(x,y);
-    if(d>r){ x*=r/d; y*=r/d }
-    stick.style.transform=`translate(${x}px,${y}px)`;
-    onMove(x/r,y/r);
+    for(const t of e.touches){
+      if(type==="move" && t.identifier!==moveTouch) continue;
+      if(type==="aim" && t.identifier!==aimTouch) continue;
+
+      const rect=el.getBoundingClientRect();
+      let x=t.clientX-rect.left-r;
+      let y=t.clientY-rect.top-r;
+      const d=Math.hypot(x,y);
+      if(d>r){ x*=r/d; y*=r/d }
+      stick.style.transform=`translate(${x}px,${y}px)`;
+
+      if(type==="move") moveVec={x:x/r,y:y/r};
+      if(type==="aim") aimVec={x:x/r,y:y/r};
+    }
   });
-  el.addEventListener("touchend",()=>{
-    stick.style.transform="translate(0,0)";
-    onEnd();
+
+  el.addEventListener("touchend",e=>{
+    for(const t of e.changedTouches){
+      if(type==="move" && t.identifier===moveTouch){
+        moveTouch=null;
+        moveVec={x:0,y:0};
+        stick.style.transform="translate(0,0)";
+      }
+      if(type==="aim" && t.identifier===aimTouch){
+        aimTouch=null;
+        firing=false;
+        aimVec={x:0,y:0};
+        stick.style.transform="translate(0,0)";
+      }
+    }
   });
 }
 
 if(isMobile){
-  joystick(moveStick,
-    (x,y)=>moveVec={x,y},
-    ()=>moveVec={x:0,y:0}
-  );
-  joystick(aimStick,
-    (x,y)=>{aimVec={x,y}; firing=true},
-    ()=>{aimVec={x:0,y:0}; firing=false}
-  );
+  setupJoystick(moveStick,"move");
+  setupJoystick(aimStick,"aim");
 }
 
 function resetGame(){
@@ -174,8 +195,8 @@ function update(){
   if(!started||paused||gameOver) return;
 
   if(isMobile){
-    player.x+=moveVec.x*player.speed*1.2;
-    player.y+=moveVec.y*player.speed*1.2;
+    player.x+=moveVec.x*player.speed*1.6;
+    player.y+=moveVec.y*player.speed*1.6;
   }else{
     if(keys.w) player.y-=player.speed;
     if(keys.s) player.y+=player.speed;
@@ -185,22 +206,14 @@ function update(){
 
   clamp();
 
-  if(
-    ((mouseDown && !isMobile) || (firing && isMobile))
-    && fireCooldown<=0
-  ){
+  if(((mouseDown&&!isMobile)||(firing&&isMobile))&&fireCooldown<=0){
     let a=isMobile
       ? Math.atan2(aimVec.y,aimVec.x)
       : Math.atan2(mouseY-player.y,mouseX-player.x);
 
-    bullets.push({
-      x:player.x,
-      y:player.y,
-      dx:Math.cos(a)*8,
-      dy:Math.sin(a)*8
-    });
+    bullets.push({x:player.x,y:player.y,dx:Math.cos(a)*8,dy:Math.sin(a)*8});
     snd.shoot();
-    fireCooldown=6;
+    fireCooldown=5;
   }
   fireCooldown=Math.max(0,fireCooldown-1);
 
