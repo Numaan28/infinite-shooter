@@ -15,8 +15,10 @@ const endText = document.getElementById("endText");
 const pauseBtn = document.getElementById("pauseBtn");
 const ui = document.getElementById("ui");
 
+const moveStick = document.getElementById("moveStick");
+const aimStick  = document.getElementById("aimStick");
+
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-if(isMobile) document.getElementById("mobileControls").style.display="block";
 
 /* AUDIO */
 let audioCtx;
@@ -24,7 +26,7 @@ function beep(f,d,t="square"){
   if(!audioCtx) audioCtx=new AudioContext();
   const o=audioCtx.createOscillator();
   const g=audioCtx.createGain();
-  o.type=t; o.frequency.value=f; g.gain.value=.2;
+  o.type=t; o.frequency.value=f; g.gain.value=.15;
   o.connect(g); g.connect(audioCtx.destination);
   o.start(); o.stop(audioCtx.currentTime+d);
 }
@@ -42,26 +44,49 @@ let kills=0,targetKills=0,timeLeft=0,initialTime=0;
 let started=false,paused=false,gameOver=false;
 let mouseDown=false,mouseX=0,mouseY=0,fireCooldown=0;
 
-/* INPUT */
+/* DESKTOP INPUT */
 addEventListener("keydown",e=>keys[e.key.toLowerCase()]=true);
 addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
 addEventListener("mousedown",()=>mouseDown=true);
 addEventListener("mouseup",()=>mouseDown=false);
 addEventListener("mousemove",e=>{mouseX=e.clientX;mouseY=e.clientY});
 
-/* MOBILE INPUT */
-let touchMove={up:false,down:false,left:false,right:false};
-let touchFire=false;
+/* MOBILE JOYSTICKS */
+let moveVec={x:0,y:0};
+let aimVec={x:0,y:0};
+let firing=false;
 
-function bind(btn,dir){
-  btn.addEventListener("touchstart",e=>{e.preventDefault();touchMove[dir]=true});
-  btn.addEventListener("touchend",()=>touchMove[dir]=false);
+function joystick(el,onMove,onEnd){
+  const stick=el.querySelector(".stick");
+  const r=70;
+
+  el.addEventListener("touchstart",e=>e.preventDefault());
+  el.addEventListener("touchmove",e=>{
+    e.preventDefault();
+    const t=e.touches[0];
+    const rect=el.getBoundingClientRect();
+    let x=t.clientX-rect.left-r;
+    let y=t.clientY-rect.top-r;
+    const d=Math.hypot(x,y);
+    if(d>r){ x*=r/d; y*=r/d }
+    stick.style.transform=`translate(${x}px,${y}px)`;
+    onMove(x/r,y/r);
+  });
+  el.addEventListener("touchend",()=>{
+    stick.style.transform="translate(0,0)";
+    onEnd();
+  });
 }
 
 if(isMobile){
-  bind(up,"up"); bind(down,"down"); bind(left,"left"); bind(right,"right");
-  fireBtn.addEventListener("touchstart",e=>{e.preventDefault();touchFire=true});
-  fireBtn.addEventListener("touchend",()=>touchFire=false);
+  joystick(moveStick,
+    (x,y)=>moveVec={x,y},
+    ()=>moveVec={x:0,y:0}
+  );
+  joystick(aimStick,
+    (x,y)=>{aimVec={x,y}; firing=true},
+    ()=>{aimVec={x:0,y:0}; firing=false}
+  );
 }
 
 function resetGame(){
@@ -85,7 +110,8 @@ function startPreset(m){
 function startCustom(){
   const k=+customKills.value,t=+customTime.value;
   if(k<=0||t<=0) return alert("Invalid values");
-  targetKills=k; initialTime=t; startGame();
+  targetKills=k; initialTime=t;
+  startGame();
 }
 
 function startGame(){
@@ -101,22 +127,25 @@ function togglePause(){
 }
 
 function restart(){
-  resetGame();
   pauseScreen.classList.add("hidden");
   endScreen.classList.add("hidden");
+  resetGame();
 }
 
 function backToMenu(){
   started=false;
-  menu.style.display="flex";
+  bullets=[]; enemies=[];
   pauseBtn.classList.add("hidden");
+  menu.style.display="flex";
+  pauseScreen.classList.add("hidden");
+  endScreen.classList.add("hidden");
   ui.innerHTML="";
 }
 
 setInterval(()=>{
   if(started&&!paused&&!gameOver){
-    timeLeft--;
-    if(timeLeft<=0) endGame(false);
+    timeLeft=Math.max(0,timeLeft-1);
+    if(timeLeft===0) endGame(false);
   }
 },1000);
 
@@ -144,16 +173,32 @@ function clamp(){
 function update(){
   if(!started||paused||gameOver) return;
 
-  if(keys.w||touchMove.up) player.y-=player.speed;
-  if(keys.s||touchMove.down) player.y+=player.speed;
-  if(keys.a||touchMove.left) player.x-=player.speed;
-  if(keys.d||touchMove.right) player.x+=player.speed;
+  if(isMobile){
+    player.x+=moveVec.x*player.speed*1.2;
+    player.y+=moveVec.y*player.speed*1.2;
+  }else{
+    if(keys.w) player.y-=player.speed;
+    if(keys.s) player.y+=player.speed;
+    if(keys.a) player.x-=player.speed;
+    if(keys.d) player.x+=player.speed;
+  }
 
-  clamp(); // 🔒 BORDER LOCK
+  clamp();
 
-  if((mouseDown||touchFire)&&fireCooldown<=0){
-    let a=Math.atan2(mouseY-player.y,mouseX-player.x);
-    bullets.push({x:player.x,y:player.y,dx:Math.cos(a)*8,dy:Math.sin(a)*8});
+  if(
+    ((mouseDown && !isMobile) || (firing && isMobile))
+    && fireCooldown<=0
+  ){
+    let a=isMobile
+      ? Math.atan2(aimVec.y,aimVec.x)
+      : Math.atan2(mouseY-player.y,mouseX-player.x);
+
+    bullets.push({
+      x:player.x,
+      y:player.y,
+      dx:Math.cos(a)*8,
+      dy:Math.sin(a)*8
+    });
     snd.shoot();
     fireCooldown=6;
   }
@@ -177,7 +222,7 @@ function update(){
       if(Math.hypot(b.x-e.x,b.y-e.y)<e.r){
         e.health-=20; b.x=-999;
         snd.hit();
-        if(e.health<=0){ kills++; e.dead=true; snd.kill(); }
+        if(e.health<=0){kills++;e.dead=true;snd.kill();}
       }
     });
   });
@@ -213,7 +258,8 @@ function draw(){
 }
 
 function loop(){
-  update(); draw();
+  update();
+  draw();
   requestAnimationFrame(loop);
 }
 loop();
