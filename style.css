@@ -79,11 +79,11 @@ a{ color:#4ea3ff; text-decoration:none }
 
 .joystick{
   position:absolute;
-  width:140px;
-  height:140px;
+  width:180px;
+  height:180px;
   border-radius:50%;
   background:rgba(255,255,255,0.08);
-  border:2px solid rgba(255,255,255,0.2);
+  border:2px solid rgba(255,255,255,0.25);
   pointer-events:auto;
   touch-action:none;
 }
@@ -100,13 +100,12 @@ a{ color:#4ea3ff; text-decoration:none }
 
 .stick{
   position:absolute;
-  width:60px;
-  height:60px;
+  width:70px;
+  height:70px;
   border-radius:50%;
   background:rgba(255,255,255,0.9);
-  left:40px;
-  top:40px;
-  transition:transform .05s linear;
+  left:55px;
+  top:55px;
 }
 
 @media (hover:none){
