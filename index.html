@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Infinite Shooter</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="menu">
+  <h1>INFINITE SHOOTER</h1>
+
+  <button onclick="startPreset('easy')">Easy (20 / 60s)</button>
+  <button onclick="startPreset('medium')">Medium (40 / 30s)</button>
+  <button onclick="startPreset('hard')">Hard (50 / 25s)</button>
+
+  <h3>Custom Mode</h3>
+  <input id="customKills" type="number" placeholder="Kills">
+  <input id="customTime" type="number" placeholder="Time (sec)">
+  <button onclick="startCustom()">Start Custom</button>
+
+  <footer>
+    made by <b>salman aka numaan khan</b><br>
+    <a href="https://github.com/Numaan28" target="_blank">GitHub</a> |
+    <a href="https://numaan28.github.io/" target="_blank">Portfolio</a>
+  </footer>
+</div>
+
+<div id="pauseScreen" class="overlay hidden">
+  <h1>PAUSED</h1>
+  <button onclick="togglePause()">Resume</button>
+  <button onclick="restart()">Restart</button>
+  <button onclick="backToMenu()">Menu</button>
+</div>
+
+<div id="endScreen" class="overlay hidden">
+  <h1 id="endText"></h1>
+  <button onclick="restart()">Restart</button>
+  <button onclick="backToMenu()">Menu</button>
+</div>
+
+<button id="pauseBtn" class="hidden" onclick="togglePause()">Pause</button>
+
+<canvas id="c"></canvas>
+<div id="ui"></div>
+
+<!-- MOBILE CONTROLS -->
+<div id="mobileControls">
+  <div id="movePad">
+    <button id="up">▲</button>
+    <div>
+      <button id="left">◀</button>
+      <button id="right">▶</button>
+    </div>
+    <button id="down">▼</button>
+  </div>
+  <button id="fireBtn">FIRE</button>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
