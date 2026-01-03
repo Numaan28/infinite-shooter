@@ -20,7 +20,6 @@ const aimStick  = document.getElementById("aimStick");
 
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-/* AUDIO */
 let audioCtx;
 function beep(f,d,t="square"){
   if(!audioCtx) audioCtx=new AudioContext();
@@ -39,19 +38,17 @@ const snd={
 };
 
 const player={ x:0,y:0,r:15,speed:4,health:100 };
-let bullets=[], enemies=[], keys={};
+let bullets=[], enemies=[], particles=[], keys={};
 let kills=0,targetKills=0,timeLeft=0,initialTime=0;
 let started=false,paused=false,gameOver=false;
 let mouseDown=false,mouseX=0,mouseY=0,fireCooldown=0;
 
-/* DESKTOP INPUT */
 addEventListener("keydown",e=>keys[e.key.toLowerCase()]=true);
 addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
 addEventListener("mousedown",()=>mouseDown=true);
 addEventListener("mouseup",()=>mouseDown=false);
 addEventListener("mousemove",e=>{mouseX=e.clientX;mouseY=e.clientY});
 
-/* ===== MOBILE MULTI-TOUCH ===== */
 let moveVec={x:0,y:0};
 let aimVec={x:0,y:0};
 let firing=false;
@@ -61,7 +58,6 @@ let aimTouch=null;
 function setupJoystick(el,type){
   const stick=el.querySelector(".stick");
   const r=90;
-
   el.addEventListener("touchstart",e=>{
     e.preventDefault();
     for(const t of e.changedTouches){
@@ -69,37 +65,28 @@ function setupJoystick(el,type){
       if(type==="aim" && aimTouch===null){ aimTouch=t.identifier; firing=true; }
     }
   });
-
   el.addEventListener("touchmove",e=>{
     e.preventDefault();
     for(const t of e.touches){
       if(type==="move" && t.identifier!==moveTouch) continue;
       if(type==="aim" && t.identifier!==aimTouch) continue;
-
       const rect=el.getBoundingClientRect();
       let x=t.clientX-rect.left-r;
       let y=t.clientY-rect.top-r;
       const d=Math.hypot(x,y);
       if(d>r){ x*=r/d; y*=r/d }
       stick.style.transform=`translate(${x}px,${y}px)`;
-
       if(type==="move") moveVec={x:x/r,y:y/r};
       if(type==="aim") aimVec={x:x/r,y:y/r};
     }
   });
-
   el.addEventListener("touchend",e=>{
     for(const t of e.changedTouches){
       if(type==="move" && t.identifier===moveTouch){
-        moveTouch=null;
-        moveVec={x:0,y:0};
-        stick.style.transform="translate(0,0)";
+        moveTouch=null; moveVec={x:0,y:0}; stick.style.transform="translate(0,0)";
       }
       if(type==="aim" && t.identifier===aimTouch){
-        aimTouch=null;
-        firing=false;
-        aimVec={x:0,y:0};
-        stick.style.transform="translate(0,0)";
+        aimTouch=null; firing=false; aimVec={x:0,y:0}; stick.style.transform="translate(0,0)";
       }
     }
   });
@@ -111,7 +98,7 @@ if(isMobile){
 }
 
 function resetGame(){
-  bullets=[]; enemies=[];
+  bullets=[]; enemies=[]; particles=[];
   kills=0; timeLeft=initialTime;
   player.health=100;
   player.x=canvas.width/2;
@@ -155,7 +142,7 @@ function restart(){
 
 function backToMenu(){
   started=false;
-  bullets=[]; enemies=[];
+  bullets=[]; enemies=[]; particles=[];
   pauseBtn.classList.add("hidden");
   menu.style.display="flex";
   pauseScreen.classList.add("hidden");
@@ -186,9 +173,30 @@ function endGame(win){
   endScreen.classList.remove("hidden");
 }
 
+function addHealthBar(){
+  player.health=Math.max(0,Math.min(100,player.health));
+  const x=120,y=canvas.height-60,w=canvas.width-240,h=20;
+  ctx.fillStyle="#7971714e";
+  ctx.fillRect(x,y,w,h);
+  ctx.fillStyle="#4caf4f79";
+  ctx.fillRect(x,y,w*(player.health/100),h);
+}
+
 function clamp(){
   player.x=Math.max(player.r,Math.min(canvas.width-player.r,player.x));
   player.y=Math.max(player.r,Math.min(canvas.height-player.r,player.y));
+}
+
+function spawnParticles(x,y){
+  for(let i=0;i<12;i++){
+    particles.push({
+      x,y,
+      dx:(Math.random()-.5)*1.2,
+      dy:(Math.random()-.5)*1.2,
+      life:80,
+      max:80
+    });
+  }
 }
 
 function update(){
@@ -207,10 +215,7 @@ function update(){
   clamp();
 
   if(((mouseDown&&!isMobile)||(firing&&isMobile))&&fireCooldown<=0){
-    let a=isMobile
-      ? Math.atan2(aimVec.y,aimVec.x)
-      : Math.atan2(mouseY-player.y,mouseX-player.x);
-
+    let a=isMobile?Math.atan2(aimVec.y,aimVec.x):Math.atan2(mouseY-player.y,mouseX-player.x);
     bullets.push({x:player.x,y:player.y,dx:Math.cos(a)*8,dy:Math.sin(a)*8});
     snd.shoot();
     fireCooldown=5;
@@ -233,12 +238,23 @@ function update(){
   bullets.forEach(b=>{
     enemies.forEach(e=>{
       if(Math.hypot(b.x-e.x,b.y-e.y)<e.r){
-        e.health-=20; b.x=-999;
+        e.health-=20;
+        spawnParticles(b.x,b.y);
+        b.x=-999;
         snd.hit();
         if(e.health<=0){kills++;e.dead=true;snd.kill();}
       }
     });
   });
+
+  particles.forEach(p=>{
+  p.x+=p.dx;
+  p.y+=p.dy;
+  p.dx*=0.96;
+  p.dy*=0.96;
+  p.life--;
+});
+particles=particles.filter(p=>p.life>0);
 
   enemies=enemies.filter(e=>!e.dead);
   if(kills>=targetKills) endGame(true);
@@ -260,12 +276,19 @@ function draw(){
     ctx.fill();
   });
 
+  particles.forEach(p=>{
+  ctx.fillStyle=`rgba(255,200,200,${p.life/p.max})`;
+  ctx.fillRect(p.x,p.y,2,2);
+});
+
   ctx.fillStyle="red";
   enemies.forEach(e=>{
     ctx.beginPath();
     ctx.arc(e.x,e.y,e.r,0,Math.PI*2);
     ctx.fill();
   });
+
+  addHealthBar();
 
   ui.innerHTML=`Health:${player.health|0}<br>Kills:${kills}/${targetKills}<br>Time:${timeLeft}s`;
 }
